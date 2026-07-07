@@ -71,14 +71,14 @@
       <button class="icon-btn" id="nextDay">›</button>
     </div>
     <nav class="tabs">
-      <button data-tab="menu" class="active">菜單資料庫</button>
-      <button data-tab="order">我要點餐</button>
+      <button data-tab="menu">菜單資料庫</button>
+      <button data-tab="order" class="active">我要點餐</button>
       <button data-tab="summary">今日總覽</button>
     </nav>
   </header>
 
   <!-- ============ 菜單資料庫 ============ -->
-  <section class="panel active" id="panel-menu">
+  <section class="panel" id="panel-menu">
     <div class="card">
       <h2>選擇店家</h2>
       <select id="storeSelect"></select>
@@ -141,7 +141,7 @@
   </section>
 
   <!-- ============ 我要點餐 ============ -->
-  <section class="panel" id="panel-order">
+  <section class="panel active" id="panel-order">
     <div class="card">
       <h2>填寫訂單</h2>
       <label>暱稱</label>
@@ -497,36 +497,54 @@
   }
   function genId2(){ return genId(); }
 
-  // ---------- storage ----------
+  // ---------- storage（共用後端：Google Apps Script） ----------
+  // 部署 google-apps-script-backend.gs 後，把網址貼在這裡
+  const API_URL = "請貼上你部署好的 Google Apps Script 網頁應用程式網址";
+
+  async function apiGet(params){
+    const url = new URL(API_URL);
+    Object.entries(params).forEach(([k,v])=> url.searchParams.set(k, v));
+    const res = await fetch(url.toString());
+    return res.json();
+  }
+  async function apiPost(payload){
+    const res = await fetch(API_URL, { method:"POST", body: JSON.stringify(payload) });
+    return res.json();
+  }
+
   async function loadStores(){
     try{
-      const r = await window.storage.get("stores", true);
-      if(r) return JSON.parse(r.value);
-    }catch(e){}
+      const r = await apiGet({ action:"getStores" });
+      if(r && r.value) return JSON.parse(r.value);
+    }catch(e){ console.error("讀取店家資料失敗", e); }
     return null;
   }
   async function saveStores(){
-    try{ await window.storage.set("stores", JSON.stringify(stores), true); }
+    try{ await apiPost({ action:"saveStores", data: stores }); }
     catch(e){ console.error("儲存店家資料失敗", e); }
   }
   async function loadOrders(date){
     try{
-      const r = await window.storage.get(`orders:${date}`, true);
-      return r ? JSON.parse(r.value) : [];
-    }catch(e){ return []; }
+      const r = await apiGet({ action:"listOrders", date });
+      return Array.isArray(r) ? r : [];
+    }catch(e){ console.error("讀取訂單失敗", e); return []; }
   }
-  async function saveOrders(){
-    try{ await window.storage.set(`orders:${currentDate}`, JSON.stringify(orders), true); }
-    catch(e){ console.error("儲存訂單失敗", e); }
+  async function addOrderRemote(order){
+    try{ await apiPost({ action:"addOrder", date: currentDate, order }); }
+    catch(e){ console.error("新增訂單失敗", e); }
+  }
+  async function deleteOrderRemote(id){
+    try{ await apiPost({ action:"deleteOrder", id }); }
+    catch(e){ console.error("刪除訂單失敗", e); }
   }
   async function loadPayments(date){
     try{
-      const r = await window.storage.get(`payments:${date}`, true);
-      return r ? JSON.parse(r.value) : {};
-    }catch(e){ return {}; }
+      const r = await apiGet({ action:"listPayments", date });
+      return r && typeof r === "object" ? r : {};
+    }catch(e){ console.error("讀取收款資料失敗", e); return {}; }
   }
-  async function savePayments(){
-    try{ await window.storage.set(`payments:${currentDate}`, JSON.stringify(payments), true); }
+  async function setPaymentRemote(nickname, paid){
+    try{ await apiPost({ action:"setPayment", date: currentDate, nickname, paid }); }
     catch(e){ console.error("儲存收款資料失敗", e); }
   }
   async function loadDay(date){
@@ -537,6 +555,15 @@
     renderOrdersTable();
     renderSummary();
   }
+
+  // 每 10 秒輪詢一次，讓大家看到同一份即時總覽（若正在輸入已付金額則跳過，避免打斷輸入）
+  setInterval(async ()=>{
+    if(document.activeElement && document.activeElement.matches("[data-person]")) return;
+    orders = await loadOrders(currentDate);
+    payments = await loadPayments(currentDate);
+    renderOrdersTable();
+    renderSummary();
+  }, 10000);
 
   // ---------- top tabs ----------
   document.querySelectorAll("header.top > nav.tabs button").forEach(btn=>{
@@ -914,7 +941,7 @@
     const qty = Math.max(1, Number(document.getElementById("orderQty").value)||1);
     const unitPrice = Number(document.getElementById("orderUnitPrice").value)||0;
 
-    orders.push({
+    const newOrder = {
       id: genId(),
       nickname,
       storeId: store.id,
@@ -930,8 +957,9 @@
       price: unitPrice * qty,
       note: document.getElementById("orderNote").value.trim(),
       createdAt: Date.now()
-    });
-    await saveOrders();
+    };
+    orders.push(newOrder);
+    await addOrderRemote(newOrder);
     renderOrdersTable();
     renderSummary();
 
@@ -982,7 +1010,7 @@
       tbody.querySelectorAll("[data-remove]").forEach(btn=>{
         btn.addEventListener("click", async ()=>{
           orders = orders.filter(o=>o.id!==btn.dataset.remove);
-          await saveOrders();
+          await deleteOrderRemote(btn.dataset.remove);
           renderOrdersTable();
           renderSummary();
         });
@@ -1039,9 +1067,8 @@
       inp.addEventListener("change", async ()=>{
         const name = inp.dataset.person;
         const val = inp.value.trim();
-        if(val==="") delete payments[name];
-        else payments[name] = Number(val)||0;
-        await savePayments();
+        if(val===""){ delete payments[name]; await setPaymentRemote(name, null); }
+        else{ payments[name] = Number(val)||0; await setPaymentRemote(name, payments[name]); }
         renderPersonSummaryTable(data);
       });
     });
