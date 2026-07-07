@@ -1,0 +1,802 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1">
+<title>訂餐訂飲料統計</title>
+<style>
+  :root{
+    --bg:#f7f7f5; --card:#ffffff; --border:#e3e2df; --text:#22221f; --muted:#75746e;
+    --accent:#3d6b5c; --accent-soft:#e7efec; --danger:#b3483f; --radius:10px;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"PingFang TC","Microsoft JhengHei",Segoe UI,sans-serif;background:var(--bg);color:var(--text);-webkit-tap-highlight-color:transparent;}
+  .app{max-width:800px;margin:0 auto;padding:12px 12px 80px;}
+  header.top{position:sticky;top:0;z-index:10;background:var(--bg);padding:10px 0 6px;}
+  h1{font-size:18px;margin:0 0 10px;font-weight:700;}
+  .date-row{display:flex;align-items:center;gap:8px;margin-bottom:10px;}
+  .date-row input[type=date]{flex:1;padding:8px 10px;border:1px solid var(--border);border-radius:var(--radius);font-size:14px;background:var(--card);}
+  .icon-btn{border:1px solid var(--border);background:var(--card);border-radius:var(--radius);padding:8px 12px;font-size:16px;cursor:pointer;}
+  nav.tabs{display:flex;gap:6px;flex-wrap:wrap;}
+  nav.tabs button{flex:1;min-width:90px;padding:9px 6px;border:1px solid var(--border);background:var(--card);border-radius:var(--radius);font-size:13px;color:var(--muted);cursor:pointer;}
+  nav.tabs button.active{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:600;}
+  nav.subtabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px;}
+  nav.subtabs button{padding:8px 12px;border:1px solid var(--border);background:#fff;border-radius:999px;font-size:13px;color:var(--muted);cursor:pointer;}
+  nav.subtabs button.active{background:var(--accent-soft);border-color:var(--accent);color:var(--accent);font-weight:600;}
+  section.panel{display:none;}
+  section.panel.active{display:block;}
+  .card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:14px;margin-bottom:12px;}
+  .card h2{font-size:15px;margin:0 0 10px;}
+  .card h3{font-size:13px;margin:16px 0 8px;color:var(--muted);border-top:1px solid var(--border);padding-top:12px;}
+  .hint{font-size:12px;color:var(--muted);line-height:1.5;margin:0 0 10px;}
+  label{display:block;font-size:12px;color:var(--muted);margin:8px 0 4px;}
+  input[type=text],input[type=number],select,textarea{width:100%;padding:9px 10px;border:1px solid var(--border);border-radius:8px;font-size:14px;background:#fff;color:var(--text);}
+  .row{display:flex;gap:8px;align-items:flex-start;}
+  .row > *{flex:1;}
+  .row > button{flex:0 0 auto;}
+  .chip-group{display:flex;flex-wrap:wrap;gap:6px;margin-top:4px;}
+  .chip{padding:6px 10px;border:1px solid var(--border);border-radius:999px;font-size:12px;cursor:pointer;background:#fff;color:var(--muted);user-select:none;}
+  .chip.selected{background:var(--accent-soft);border-color:var(--accent);color:var(--accent);font-weight:600;}
+  .tag{display:inline-flex;align-items:center;gap:4px;border:1px solid var(--border);border-radius:999px;padding:5px 6px 5px 12px;font-size:12px;margin:0 6px 6px 0;background:#fff;}
+  .tag button{border:none;background:none;color:var(--danger);font-size:14px;line-height:1;cursor:pointer;padding:2px 6px;}
+  button.primary{background:var(--accent);color:#fff;border:none;border-radius:8px;padding:11px 16px;font-size:14px;font-weight:600;cursor:pointer;width:100%;margin-top:12px;}
+  button.secondary{background:#fff;color:var(--accent);border:1px solid var(--accent);border-radius:8px;padding:9px 14px;font-size:13px;cursor:pointer;white-space:nowrap;}
+  button.ghost{background:none;border:none;color:var(--danger);font-size:12px;cursor:pointer;padding:4px 6px;}
+  table{width:100%;border-collapse:collapse;font-size:13px;}
+  th,td{text-align:left;padding:7px 6px;border-bottom:1px solid var(--border);vertical-align:top;}
+  th{color:var(--muted);font-weight:600;font-size:12px;white-space:nowrap;}
+  .table-wrap{overflow-x:auto;}
+  .empty{text-align:center;color:var(--muted);font-size:13px;padding:20px 0;}
+  .stat-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:6px;}
+  .stat-box{background:var(--accent-soft);border-radius:8px;padding:12px;text-align:center;}
+  .stat-box .num{font-size:22px;font-weight:700;color:var(--accent);}
+  .stat-box .label{font-size:12px;color:var(--muted);margin-top:2px;}
+  .status{font-size:12px;margin-top:8px;}
+  .status.error{color:var(--danger);}
+  .status.success{color:var(--accent);}
+  .small-input{width:64px;flex:0 0 64px;}
+  .badge{display:inline-block;padding:2px 8px;border-radius:999px;font-size:11px;background:var(--accent-soft);color:var(--accent);font-weight:600;}
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="top">
+    <h1>🍱 訂餐訂飲料統計</h1>
+    <div class="date-row">
+      <button class="icon-btn" id="prevDay">‹</button>
+      <input type="date" id="datePicker">
+      <button class="icon-btn" id="nextDay">›</button>
+    </div>
+    <nav class="tabs">
+      <button data-tab="menu" class="active">菜單資料庫</button>
+      <button data-tab="order">我要點餐</button>
+      <button data-tab="summary">今日總覽</button>
+    </nav>
+  </header>
+
+  <!-- ============ 菜單資料庫 ============ -->
+  <section class="panel active" id="panel-menu">
+    <div class="card">
+      <h2>選擇店家</h2>
+      <select id="storeSelect"></select>
+      <div class="row" style="margin-top:8px">
+        <input type="text" id="newStoreName" placeholder="新增店家名稱，例如：50嵐 新竹北大店">
+        <button class="secondary" id="addStoreBtn">新增店家</button>
+      </div>
+    </div>
+
+    <div class="card" id="storeDetailCard" style="display:none">
+      <h2>店家設定</h2>
+      <label>店名</label>
+      <input type="text" id="storeNameInput">
+
+      <h3>甜度選項</h3>
+      <div class="chip-group" id="sweetnessOptTags"></div>
+      <div class="row" style="margin-top:6px">
+        <input type="text" id="newSweetnessOpt" placeholder="新增甜度選項，例如：半糖">
+        <button class="secondary" id="addSweetnessBtn">新增</button>
+      </div>
+
+      <h3>冰塊選項</h3>
+      <div class="chip-group" id="iceOptTags"></div>
+      <div class="row" style="margin-top:6px">
+        <input type="text" id="newIceOpt" placeholder="新增冰塊選項，例如：少冰">
+        <button class="secondary" id="addIceBtn">新增</button>
+      </div>
+
+      <h3>加料選項（含加價）</h3>
+      <div class="table-wrap">
+        <table id="toppingTable"><thead><tr><th>加料</th><th>加價</th><th></th></tr></thead><tbody></tbody></table>
+      </div>
+      <div class="empty" id="toppingEmpty" style="display:none">還沒有加料選項。</div>
+      <div class="row" style="margin-top:6px">
+        <input type="text" id="newToppingName" placeholder="加料名稱，例如：珍珠">
+        <input type="number" id="newToppingPrice" placeholder="加價" class="small-input">
+        <button class="secondary" id="addToppingBtn">新增</button>
+      </div>
+    </div>
+
+    <div class="card" id="categoryCard" style="display:none">
+      <h2>大分類與品項</h2>
+      <nav class="subtabs" id="categoryTabs"></nav>
+      <div class="row">
+        <input type="text" id="newCategoryName" placeholder="新增大分類，例如：找好茶">
+        <button class="secondary" id="addCategoryBtn">新增分類</button>
+      </div>
+      <div class="table-wrap" style="margin-top:12px">
+        <table id="itemTable"><thead><tr><th>品名</th><th>M價</th><th>L價</th><th></th></tr></thead><tbody></tbody></table>
+      </div>
+      <div class="empty" id="itemEmpty" style="display:none">這個分類還沒有品項。</div>
+      <h3>新增品項</h3>
+      <div class="row">
+        <input type="text" id="newItemName" placeholder="品名">
+        <input type="number" id="newItemPriceM" placeholder="M價" class="small-input">
+        <input type="number" id="newItemPriceL" placeholder="L價" class="small-input">
+      </div>
+      <button class="secondary" id="addItemBtn" style="width:100%;margin-top:8px">新增品項</button>
+    </div>
+  </section>
+
+  <!-- ============ 我要點餐 ============ -->
+  <section class="panel" id="panel-order">
+    <div class="card">
+      <h2>填寫訂單</h2>
+      <label>暱稱</label>
+      <input type="text" id="orderNickname" placeholder="你的名字或暱稱">
+
+      <label>店家</label>
+      <select id="orderStoreSelect"></select>
+
+      <label>大分類</label>
+      <nav class="subtabs" id="orderCategoryTabs"></nav>
+
+      <label>品項</label>
+      <select id="orderItemSelect"></select>
+
+      <label>尺寸</label>
+      <div class="chip-group" id="sizeChips"></div>
+
+      <label>甜度</label>
+      <div class="chip-group" id="sweetnessChips"></div>
+
+      <label>冰塊</label>
+      <div class="chip-group" id="iceChips"></div>
+
+      <label>加料（可複選，會自動加價）</label>
+      <div class="chip-group" id="toppingChips"></div>
+
+      <div class="row">
+        <div>
+          <label>數量</label>
+          <input type="number" id="orderQty" value="1" min="1">
+        </div>
+        <div>
+          <label>單價（含加料，可修改）</label>
+          <input type="number" id="orderUnitPrice">
+        </div>
+      </div>
+
+      <label>備註（選填）</label>
+      <input type="text" id="orderNote" placeholder="例如：不要香菜">
+
+      <button class="primary" id="submitOrderBtn">送出訂單</button>
+      <div class="status" id="orderStatus"></div>
+    </div>
+  </section>
+
+  <!-- ============ 今日總覽 ============ -->
+  <section class="panel" id="panel-summary">
+    <div class="card">
+      <h2>統計</h2>
+      <div class="stat-grid">
+        <div class="stat-box"><div class="num" id="statCount">0</div><div class="label">總份數/杯數</div></div>
+        <div class="stat-box"><div class="num" id="statTotal">$0</div><div class="label">總金額</div></div>
+      </div>
+      <h3>依店家統計</h3>
+      <div class="table-wrap"><table id="storeSummaryTable"><thead><tr><th>店家</th><th>數量</th><th>小計</th></tr></thead><tbody></tbody></table></div>
+      <h3>依品項統計</h3>
+      <div class="table-wrap"><table id="itemSummaryTable"><thead><tr><th>品項</th><th>數量</th><th>小計</th></tr></thead><tbody></tbody></table></div>
+      <h3>依暱稱統計（分帳用）</h3>
+      <div class="table-wrap"><table id="personSummaryTable"><thead><tr><th>暱稱</th><th>數量</th><th>應付金額</th></tr></thead><tbody></tbody></table></div>
+    </div>
+
+    <div class="card">
+      <h2>今日訂單明細</h2>
+      <div class="table-wrap">
+        <table id="ordersTable">
+          <thead><tr><th>暱稱</th><th>店家</th><th>品項</th><th>尺寸</th><th>甜度/冰塊</th><th>加料</th><th>數量</th><th>備註</th><th>金額</th><th></th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+      <div class="empty" id="ordersEmpty" style="display:none">今天還沒有人點餐。</div>
+    </div>
+  </section>
+</div>
+
+<script>
+(function(){
+  let currentDate = todayStr();
+  let stores = [];
+  let orders = [];
+  let activeStoreId = null;       // 菜單資料庫頁使用
+  let activeCategoryId = null;    // 菜單資料庫頁使用
+  let orderStoreId = null;        // 點餐頁使用
+  let orderCategoryId = null;
+  let selectedSize = "M";
+  let selectedSweetness = "";
+  let selectedIce = "";
+  let selectedToppingIds = [];
+
+  function todayStr(){
+    const d = new Date();
+    const pad = n => String(n).padStart(2,"0");
+    return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+  }
+  function genId(){ return Date.now().toString(36) + Math.random().toString(36).slice(2,8); }
+  function escapeHtml(str){ return String(str).replace(/[&<>"']/g, s=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[s])); }
+  function findStore(id){ return stores.find(s=>s.id===id); }
+  function findCategory(store, id){ return store ? (store.categories||[]).find(c=>c.id===id) : null; }
+
+  // ---------- seed data (從上傳的 50嵐 新竹北大店 菜單匯入) ----------
+  function seedStore(){
+    function items(list){ return list.map(([name,m,l])=>({id:genId(),name,priceM:m,priceL:l})); }
+    return [{
+      id: genId(),
+      name: "50嵐 新竹北大店",
+      sweetnessOptions: ["無糖","微糖","半糖","少糖","全糖"],
+      iceOptions: ["溫熱飲","去冰","微冰","少冰","正常冰"],
+      toppings: [],
+      categories: [
+        { id: genId(), name:"找好茶", items: items([
+          ["茉莉綠茶",30,35],["阿薩姆紅茶",30,35],["四季春青茶",30,35],["黃金烏龍",30,35],
+          ["椰果紅茶",35,45],["椰果綠茶",35,45],["波霸紅茶",35,45],["波霸綠茶",35,45],
+          ["燕麥紅茶",35,45],["燕麥綠茶",35,45],["燕麥青茶",35,45],
+          ["微檸檬紅茶",35,45],["微檸檬青茶",35,45],
+          ["檸檬綠茶",40,55],["檸檬青茶",40,55],["梅の綠",40,55],["8冰綠",40,55],["情人茶",40,55],
+          ["柚子紅茶",40,55],["柚子綠茶",40,55],["柚子青茶",40,55],["柚子烏龍",40,55],
+          ["旺來紅茶",40,55],["旺來青茶",40,55],
+          ["冰淇淋紅茶(香草)",40,55],["多多綠茶",40,55],["多多紅茶",40,55],
+          ["多多檸檬綠茶",50,65]
+        ])},
+        { id: genId(), name:"找奶茶", items: items([
+          ["奶茶",40,55],["奶綠",40,55],["烏龍奶茶",40,55],["椰果奶茶",40,55],
+          ["珍珠奶茶",40,55],["波霸奶茶",40,55],["燕麥奶茶",40,55],["燕麥奶青",40,55],
+          ["燕麥烏龍奶",40,55],["布丁奶茶",50,65],["冰淇淋奶茶(香草)",50,65],
+          ["紅茶瑪奇朵(鮮奶油)",40,55],["青茶瑪奇朵(鮮奶油)",40,55],
+          ["阿華田",45,60],["燕麥阿華田",45,60],["可可芭蕾",50,65]
+        ])},
+        { id: genId(), name:"找拿鐵", items: items([
+          ["紅茶拿鐵",50,65],["綠茶拿鐵",50,65],["烏龍拿鐵",50,65],
+          ["珍珠紅茶拿鐵",50,65],["波霸紅茶拿鐵",50,65],["燕麥紅茶拿鐵",50,65],
+          ["布丁紅茶拿鐵",55,75],["冰淇淋紅茶拿鐵(香草)",55,75],
+          ["阿華田拿鐵",55,75],["燕麥阿華田拿鐵",55,75],["可可芭蕾拿鐵",55,75]
+        ])},
+        { id: genId(), name:"找新鮮", items: items([
+          ["柚子茶",40,55],["8冰茶",40,55],["檸檬汁",50,65],["金桔檸檬",50,65],
+          ["檸檬梅汁",50,65],["檸檬多多",55,75]
+        ])},
+        { id: genId(), name:"季節限定", items: items([
+          ["蜂蜜紅茶",40,55],["蜂蜜綠茶",40,55],["蜂蜜奶茶",50,65],["鮮柚綠茶",50,65],
+          ["葡萄柚汁",50,65],["葡萄柚蜜",55,75],["葡萄柚多多",55,75],
+          ["檸檬蜜",55,75],["金桔檸檬蜜",55,75]
+        ])}
+      ]
+    }];
+  }
+  function genId2(){ return genId(); }
+
+  // ---------- storage ----------
+  async function loadStores(){
+    try{
+      const r = await window.storage.get("stores", true);
+      if(r) return JSON.parse(r.value);
+    }catch(e){}
+    return null;
+  }
+  async function saveStores(){
+    try{ await window.storage.set("stores", JSON.stringify(stores), true); }
+    catch(e){ console.error("儲存店家資料失敗", e); }
+  }
+  async function loadOrders(date){
+    try{
+      const r = await window.storage.get(`orders:${date}`, true);
+      return r ? JSON.parse(r.value) : [];
+    }catch(e){ return []; }
+  }
+  async function saveOrders(){
+    try{ await window.storage.set(`orders:${currentDate}`, JSON.stringify(orders), true); }
+    catch(e){ console.error("儲存訂單失敗", e); }
+  }
+  async function loadDay(date){
+    currentDate = date;
+    document.getElementById("datePicker").value = date;
+    orders = await loadOrders(date);
+    renderOrdersTable();
+    renderSummary();
+  }
+
+  // ---------- top tabs ----------
+  document.querySelectorAll("header.top > nav.tabs button").forEach(btn=>{
+    btn.addEventListener("click", ()=>{
+      document.querySelectorAll("header.top > nav.tabs button").forEach(b=>b.classList.remove("active"));
+      document.querySelectorAll("section.panel").forEach(p=>p.classList.remove("active"));
+      btn.classList.add("active");
+      document.getElementById("panel-"+btn.dataset.tab).classList.add("active");
+    });
+  });
+  document.getElementById("datePicker").addEventListener("change", e=> loadDay(e.target.value));
+  document.getElementById("prevDay").addEventListener("click", ()=>{
+    const d = new Date(currentDate); d.setDate(d.getDate()-1); loadDay(d.toISOString().slice(0,10));
+  });
+  document.getElementById("nextDay").addEventListener("click", ()=>{
+    const d = new Date(currentDate); d.setDate(d.getDate()+1); loadDay(d.toISOString().slice(0,10));
+  });
+
+  // ================= 菜單資料庫 =================
+  function renderStoreSelect(){
+    const sel = document.getElementById("storeSelect");
+    sel.innerHTML = "";
+    stores.forEach(s=>{
+      const opt = document.createElement("option");
+      opt.value = s.id; opt.textContent = s.name;
+      sel.appendChild(opt);
+    });
+    if(!activeStoreId && stores.length) activeStoreId = stores[0].id;
+    if(activeStoreId) sel.value = activeStoreId;
+  }
+  document.getElementById("storeSelect").addEventListener("change", e=>{
+    activeStoreId = e.target.value;
+    activeCategoryId = null;
+    renderStoreDetail();
+  });
+  document.getElementById("addStoreBtn").addEventListener("click", async ()=>{
+    const inp = document.getElementById("newStoreName");
+    const name = inp.value.trim();
+    if(!name) return;
+    const store = { id: genId(), name, sweetnessOptions:[], iceOptions:[], toppings:[], categories:[] };
+    stores.push(store);
+    activeStoreId = store.id;
+    inp.value = "";
+    await saveStores();
+    renderStoreSelect();
+    renderStoreDetail();
+    renderOrderStoreSelect();
+  });
+
+  function renderStoreDetail(){
+    const store = findStore(activeStoreId);
+    document.getElementById("storeDetailCard").style.display = store ? "block" : "none";
+    document.getElementById("categoryCard").style.display = store ? "block" : "none";
+    if(!store) return;
+    document.getElementById("storeNameInput").value = store.name;
+    renderTagList("sweetnessOptTags", store.sweetnessOptions, async (idx)=>{
+      store.sweetnessOptions.splice(idx,1); await saveStores(); renderStoreDetail();
+    });
+    renderTagList("iceOptTags", store.iceOptions, async (idx)=>{
+      store.iceOptions.splice(idx,1); await saveStores(); renderStoreDetail();
+    });
+    renderToppingTable(store);
+    renderCategoryTabs(store);
+  }
+
+  function renderTagList(containerId, list, onRemove){
+    const container = document.getElementById(containerId);
+    container.innerHTML = "";
+    (list||[]).forEach((val, idx)=>{
+      const tag = document.createElement("span");
+      tag.className = "tag";
+      tag.innerHTML = `${escapeHtml(val)}<button data-idx="${idx}">×</button>`;
+      tag.querySelector("button").addEventListener("click", ()=> onRemove(idx));
+      container.appendChild(tag);
+    });
+  }
+
+  document.getElementById("storeNameInput").addEventListener("change", async (e)=>{
+    const store = findStore(activeStoreId);
+    if(!store) return;
+    store.name = e.target.value.trim() || store.name;
+    await saveStores();
+    renderStoreSelect();
+    renderOrderStoreSelect();
+  });
+
+  document.getElementById("addSweetnessBtn").addEventListener("click", async ()=>{
+    const store = findStore(activeStoreId); if(!store) return;
+    const inp = document.getElementById("newSweetnessOpt");
+    const val = inp.value.trim(); if(!val) return;
+    store.sweetnessOptions = store.sweetnessOptions || [];
+    store.sweetnessOptions.push(val);
+    inp.value = "";
+    await saveStores();
+    renderStoreDetail();
+  });
+  document.getElementById("addIceBtn").addEventListener("click", async ()=>{
+    const store = findStore(activeStoreId); if(!store) return;
+    const inp = document.getElementById("newIceOpt");
+    const val = inp.value.trim(); if(!val) return;
+    store.iceOptions = store.iceOptions || [];
+    store.iceOptions.push(val);
+    inp.value = "";
+    await saveStores();
+    renderStoreDetail();
+  });
+
+  function renderToppingTable(store){
+    const tbody = document.querySelector("#toppingTable tbody");
+    tbody.innerHTML = "";
+    const list = store.toppings || [];
+    document.getElementById("toppingEmpty").style.display = list.length ? "none" : "block";
+    list.forEach(t=>{
+      const tr = document.createElement("tr");
+      tr.innerHTML = `
+        <td><input type="text" value="${escapeHtml(t.name)}" data-field="name" data-id="${t.id}"></td>
+        <td><input type="number" value="${t.price}" class="small-input" data-field="price" data-id="${t.id}"></td>
+        <td><button class="ghost" data-remove="${t.id}">刪除</button></td>`;
+      tbody.appendChild(tr);
+    });
+    tbody.querySelectorAll("input").forEach(inp=>{
+      inp.addEventListener("change", async ()=>{
+        const t = store.toppings.find(x=>x.id===inp.dataset.id);
+        if(!t) return;
+        if(inp.dataset.field==="name") t.name = inp.value;
+        else t.price = Number(inp.value)||0;
+        await saveStores();
+      });
+    });
+    tbody.querySelectorAll("[data-remove]").forEach(btn=>{
+      btn.addEventListener("click", async ()=>{
+        store.toppings = store.toppings.filter(x=>x.id!==btn.dataset.remove);
+        await saveStores();
+        renderStoreDetail();
+      });
+    });
+  }
+  document.getElementById("addToppingBtn").addEventListener("click", async ()=>{
+    const store = findStore(activeStoreId); if(!store) return;
+    const nameInp = document.getElementById("newToppingName");
+    const priceInp = document.getElementById("newToppingPrice");
+    const name = nameInp.value.trim(); if(!name) return;
+    store.toppings = store.toppings || [];
+    store.toppings.push({ id: genId(), name, price: Number(priceInp.value)||0 });
+    nameInp.value = ""; priceInp.value = "";
+    await saveStores();
+    renderStoreDetail();
+  });
+
+  function renderCategoryTabs(store){
+    const nav = document.getElementById("categoryTabs");
+    nav.innerHTML = "";
+    const cats = store.categories || [];
+    if(!activeCategoryId && cats.length) activeCategoryId = cats[0].id;
+    cats.forEach(cat=>{
+      const btn = document.createElement("button");
+      btn.textContent = cat.name;
+      if(cat.id === activeCategoryId) btn.classList.add("active");
+      btn.addEventListener("click", ()=>{ activeCategoryId = cat.id; renderCategoryTabs(store); renderItemTable(store); });
+      nav.appendChild(btn);
+    });
+    renderItemTable(store);
+  }
+  document.getElementById("addCategoryBtn").addEventListener("click", async ()=>{
+    const store = findStore(activeStoreId); if(!store) return;
+    const inp = document.getElementById("newCategoryName");
+    const name = inp.value.trim(); if(!name) return;
+    store.categories = store.categories || [];
+    const cat = { id: genId(), name, items: [] };
+    store.categories.push(cat);
+    activeCategoryId = cat.id;
+    inp.value = "";
+    await saveStores();
+    renderCategoryTabs(store);
+    renderOrderCategoryTabs();
+  });
+
+  function renderItemTable(store){
+    const cat = findCategory(store, activeCategoryId);
+    const tbody = document.querySelector("#itemTable tbody");
+    tbody.innerHTML = "";
+    const list = cat ? cat.items : [];
+    document.getElementById("itemEmpty").style.display = (cat && list.length===0) ? "block" : "none";
+    if(!cat) return;
+    list.forEach(item=>{
+      const tr = document.createElement("tr");
+      tr.innerHTML = `
+        <td><input type="text" value="${escapeHtml(item.name)}" data-field="name" data-id="${item.id}"></td>
+        <td><input type="number" value="${item.priceM}" class="small-input" data-field="priceM" data-id="${item.id}"></td>
+        <td><input type="number" value="${item.priceL}" class="small-input" data-field="priceL" data-id="${item.id}"></td>
+        <td><button class="ghost" data-remove="${item.id}">刪除</button></td>`;
+      tbody.appendChild(tr);
+    });
+    tbody.querySelectorAll("input").forEach(inp=>{
+      inp.addEventListener("change", async ()=>{
+        const item = cat.items.find(i=>i.id===inp.dataset.id);
+        if(!item) return;
+        if(inp.dataset.field==="name") item.name = inp.value;
+        else if(inp.dataset.field==="priceM") item.priceM = Number(inp.value)||0;
+        else item.priceL = Number(inp.value)||0;
+        await saveStores();
+        renderOrderItemSelect();
+      });
+    });
+    tbody.querySelectorAll("[data-remove]").forEach(btn=>{
+      btn.addEventListener("click", async ()=>{
+        cat.items = cat.items.filter(i=>i.id!==btn.dataset.remove);
+        await saveStores();
+        renderItemTable(store);
+        renderOrderItemSelect();
+      });
+    });
+  }
+  document.getElementById("addItemBtn").addEventListener("click", async ()=>{
+    const store = findStore(activeStoreId); if(!store) return;
+    const cat = findCategory(store, activeCategoryId); if(!cat) return;
+    const nameInp = document.getElementById("newItemName");
+    const mInp = document.getElementById("newItemPriceM");
+    const lInp = document.getElementById("newItemPriceL");
+    const name = nameInp.value.trim(); if(!name) return;
+    cat.items.push({ id: genId(), name, priceM: Number(mInp.value)||0, priceL: Number(lInp.value)||0 });
+    nameInp.value=""; mInp.value=""; lInp.value="";
+    await saveStores();
+    renderItemTable(store);
+    renderOrderItemSelect();
+  });
+
+  // ================= 我要點餐 =================
+  function renderOrderStoreSelect(){
+    const sel = document.getElementById("orderStoreSelect");
+    sel.innerHTML = "";
+    stores.forEach(s=>{
+      const opt = document.createElement("option");
+      opt.value = s.id; opt.textContent = s.name;
+      sel.appendChild(opt);
+    });
+    if(!orderStoreId && stores.length) orderStoreId = stores[0].id;
+    if(orderStoreId) sel.value = orderStoreId;
+    renderOrderCategoryTabs();
+  }
+  document.getElementById("orderStoreSelect").addEventListener("change", e=>{
+    orderStoreId = e.target.value;
+    orderCategoryId = null;
+    renderOrderCategoryTabs();
+    renderOptionChipsForStore();
+  });
+
+  function renderOrderCategoryTabs(){
+    const store = findStore(orderStoreId);
+    const nav = document.getElementById("orderCategoryTabs");
+    nav.innerHTML = "";
+    const cats = store ? (store.categories||[]) : [];
+    if(!orderCategoryId && cats.length) orderCategoryId = cats[0].id;
+    cats.forEach(cat=>{
+      const btn = document.createElement("button");
+      btn.textContent = cat.name;
+      if(cat.id === orderCategoryId) btn.classList.add("active");
+      btn.addEventListener("click", ()=>{ orderCategoryId = cat.id; renderOrderCategoryTabs(); renderOrderItemSelect(); });
+      nav.appendChild(btn);
+    });
+    renderOrderItemSelect();
+    renderOptionChipsForStore();
+  }
+
+  function renderOrderItemSelect(){
+    const store = findStore(orderStoreId);
+    const cat = store ? findCategory(store, orderCategoryId) : null;
+    const sel = document.getElementById("orderItemSelect");
+    sel.innerHTML = "";
+    (cat ? cat.items : []).forEach(item=>{
+      const opt = document.createElement("option");
+      opt.value = item.id;
+      opt.textContent = `${item.name}（M$${item.priceM} / L$${item.priceL}）`;
+      sel.appendChild(opt);
+    });
+    updateUnitPrice();
+  }
+  document.getElementById("orderItemSelect").addEventListener("change", updateUnitPrice);
+
+  function renderSizeChips(){
+    const container = document.getElementById("sizeChips");
+    container.innerHTML = "";
+    ["M","L"].forEach(sz=>{
+      const chip = document.createElement("div");
+      chip.className = "chip" + (selectedSize===sz ? " selected" : "");
+      chip.textContent = sz;
+      chip.addEventListener("click", ()=>{ selectedSize = sz; renderSizeChips(); updateUnitPrice(); });
+      container.appendChild(chip);
+    });
+  }
+
+  function renderOptionChipsForStore(){
+    const store = findStore(orderStoreId);
+    const sweetOpts = store ? (store.sweetnessOptions||[]) : [];
+    const iceOpts = store ? (store.iceOptions||[]) : [];
+    const toppingOpts = store ? (store.toppings||[]) : [];
+    if(!sweetOpts.includes(selectedSweetness)) selectedSweetness = sweetOpts[0] || "";
+    if(!iceOpts.includes(selectedIce)) selectedIce = iceOpts[0] || "";
+    selectedToppingIds = selectedToppingIds.filter(id=> toppingOpts.some(t=>t.id===id));
+
+    const sweetContainer = document.getElementById("sweetnessChips");
+    sweetContainer.innerHTML = "";
+    sweetOpts.forEach(opt=>{
+      const chip = document.createElement("div");
+      chip.className = "chip" + (selectedSweetness===opt ? " selected" : "");
+      chip.textContent = opt;
+      chip.addEventListener("click", ()=>{ selectedSweetness = opt; renderOptionChipsForStore(); });
+      sweetContainer.appendChild(chip);
+    });
+
+    const iceContainer = document.getElementById("iceChips");
+    iceContainer.innerHTML = "";
+    iceOpts.forEach(opt=>{
+      const chip = document.createElement("div");
+      chip.className = "chip" + (selectedIce===opt ? " selected" : "");
+      chip.textContent = opt;
+      chip.addEventListener("click", ()=>{ selectedIce = opt; renderOptionChipsForStore(); });
+      iceContainer.appendChild(chip);
+    });
+
+    const toppingContainer = document.getElementById("toppingChips");
+    toppingContainer.innerHTML = "";
+    toppingOpts.forEach(t=>{
+      const chip = document.createElement("div");
+      chip.className = "chip" + (selectedToppingIds.includes(t.id) ? " selected" : "");
+      chip.textContent = `${t.name} +$${t.price}`;
+      chip.addEventListener("click", ()=>{
+        if(selectedToppingIds.includes(t.id)) selectedToppingIds = selectedToppingIds.filter(id=>id!==t.id);
+        else selectedToppingIds.push(t.id);
+        renderOptionChipsForStore();
+        updateUnitPrice();
+      });
+      toppingContainer.appendChild(chip);
+    });
+    updateUnitPrice();
+  }
+
+  function updateUnitPrice(){
+    const store = findStore(orderStoreId);
+    const cat = store ? findCategory(store, orderCategoryId) : null;
+    const sel = document.getElementById("orderItemSelect");
+    const item = cat ? cat.items.find(i=>i.id===sel.value) : null;
+    let base = 0;
+    if(item) base = selectedSize === "L" ? item.priceL : item.priceM;
+    const toppingSum = (store ? (store.toppings||[]) : [])
+      .filter(t=>selectedToppingIds.includes(t.id))
+      .reduce((s,t)=>s+(t.price||0),0);
+    document.getElementById("orderUnitPrice").value = base + toppingSum;
+  }
+
+  document.getElementById("submitOrderBtn").addEventListener("click", async ()=>{
+    const status = document.getElementById("orderStatus");
+    const nickname = document.getElementById("orderNickname").value.trim();
+    if(!nickname){ status.className="status error"; status.textContent="請填寫暱稱"; return; }
+    const store = findStore(orderStoreId);
+    if(!store){ status.className="status error"; status.textContent="請先建立店家"; return; }
+    const cat = findCategory(store, orderCategoryId);
+    const sel = document.getElementById("orderItemSelect");
+    const item = cat ? cat.items.find(i=>i.id===sel.value) : null;
+    if(!item){ status.className="status error"; status.textContent="請先在菜單資料庫新增品項"; return; }
+
+    const toppings = (store.toppings||[]).filter(t=>selectedToppingIds.includes(t.id))
+      .map(t=>({name:t.name, price:t.price}));
+    const qty = Math.max(1, Number(document.getElementById("orderQty").value)||1);
+    const unitPrice = Number(document.getElementById("orderUnitPrice").value)||0;
+
+    orders.push({
+      id: genId(),
+      nickname,
+      storeId: store.id,
+      storeName: store.name,
+      categoryName: cat.name,
+      itemName: item.name,
+      size: selectedSize,
+      sweetness: selectedSweetness,
+      ice: selectedIce,
+      toppings,
+      qty,
+      unitPrice,
+      price: unitPrice * qty,
+      note: document.getElementById("orderNote").value.trim(),
+      createdAt: Date.now()
+    });
+    await saveOrders();
+    renderOrdersTable();
+    renderSummary();
+
+    document.getElementById("orderNote").value = "";
+    document.getElementById("orderQty").value = 1;
+    status.className = "status success";
+    status.textContent = `已加入訂單：${nickname} - ${item.name} x${qty}`;
+  });
+
+  // ================= 今日訂單明細 =================
+  function renderOrdersTable(){
+    const tbody = document.querySelector("#ordersTable tbody");
+    tbody.innerHTML = "";
+    document.getElementById("ordersEmpty").style.display = orders.length ? "none" : "block";
+    orders.forEach(o=>{
+      const toppingText = (o.toppings||[]).map(t=>`${t.name}+$${t.price}`).join("、");
+      const tr = document.createElement("tr");
+      tr.innerHTML = `
+        <td>${escapeHtml(o.nickname)}</td>
+        <td>${escapeHtml(o.storeName)}</td>
+        <td>${escapeHtml(o.itemName)}${o.note?` <span class="hint">(${escapeHtml(o.note)})</span>`:""}</td>
+        <td>${escapeHtml(o.size)}</td>
+        <td>${escapeHtml([o.sweetness,o.ice].filter(Boolean).join(" / "))}</td>
+        <td>${escapeHtml(toppingText)}</td>
+        <td>${o.qty}</td>
+        <td>${escapeHtml(o.note||"")}</td>
+        <td>$${o.price}</td>
+        <td><button class="ghost" data-remove="${o.id}">刪除</button></td>`;
+      tbody.appendChild(tr);
+    });
+    tbody.querySelectorAll("[data-remove]").forEach(btn=>{
+      btn.addEventListener("click", async ()=>{
+        orders = orders.filter(o=>o.id!==btn.dataset.remove);
+        await saveOrders();
+        renderOrdersTable();
+        renderSummary();
+      });
+    });
+  }
+
+  function renderSummary(){
+    document.getElementById("statCount").textContent = orders.reduce((s,o)=>s+o.qty,0);
+    const total = orders.reduce((s,o)=>s+(o.price||0),0);
+    document.getElementById("statTotal").textContent = "$" + total;
+
+    const byStore = {};
+    orders.forEach(o=>{
+      if(!byStore[o.storeName]) byStore[o.storeName] = {count:0,subtotal:0};
+      byStore[o.storeName].count += o.qty;
+      byStore[o.storeName].subtotal += o.price;
+    });
+    fillSummaryTable("storeSummaryTable", byStore);
+
+    const byItem = {};
+    orders.forEach(o=>{
+      const key = `${o.storeName} - ${o.itemName}（${o.size}）`;
+      if(!byItem[key]) byItem[key] = {count:0,subtotal:0};
+      byItem[key].count += o.qty;
+      byItem[key].subtotal += o.price;
+    });
+    fillSummaryTable("itemSummaryTable", byItem);
+
+    const byPerson = {};
+    orders.forEach(o=>{
+      if(!byPerson[o.nickname]) byPerson[o.nickname] = {count:0,subtotal:0};
+      byPerson[o.nickname].count += o.qty;
+      byPerson[o.nickname].subtotal += o.price;
+    });
+    fillSummaryTable("personSummaryTable", byPerson);
+  }
+  function fillSummaryTable(tableId, data){
+    const tbody = document.querySelector(`#${tableId} tbody`);
+    tbody.innerHTML = "";
+    Object.entries(data).forEach(([name, v])=>{
+      const tr = document.createElement("tr");
+      tr.innerHTML = `<td>${escapeHtml(name)}</td><td>${v.count}</td><td>$${v.subtotal}</td>`;
+      tbody.appendChild(tr);
+    });
+  }
+
+  // ---------- init ----------
+  (async function init(){
+    const loaded = await loadStores();
+    if(loaded && loaded.length){
+      stores = loaded;
+    }else{
+      stores = seedStore();
+      await saveStores();
+    }
+    activeStoreId = stores[0].id;
+    orderStoreId = stores[0].id;
+    renderStoreSelect();
+    renderStoreDetail();
+    renderOrderStoreSelect();
+    renderSizeChips();
+    renderOptionChipsForStore();
+    await loadDay(currentDate);
+  })();
+})();
+</script>
+</body>
+</html>
