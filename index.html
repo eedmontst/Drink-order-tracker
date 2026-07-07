@@ -46,6 +46,9 @@
   th,td{text-align:left;padding:7px 6px;border-bottom:1px solid var(--border);vertical-align:top;}
   th{color:var(--muted);font-weight:600;font-size:12px;white-space:nowrap;}
   .table-wrap{overflow-x:auto;}
+  #orderItemTable tbody tr{cursor:pointer;}
+  #orderItemTable tbody tr:hover{background:#fafaf9;}
+  #orderItemTable tbody tr.selected{background:var(--accent-soft);}
   .empty{text-align:center;color:var(--muted);font-size:13px;padding:20px 0;}
   .stat-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:6px;}
   .stat-box{background:var(--accent-soft);border-radius:8px;padding:12px;text-align:center;}
@@ -150,36 +153,41 @@
       <label>大分類</label>
       <nav class="subtabs" id="orderCategoryTabs"></nav>
 
-      <label>品項</label>
-      <select id="orderItemSelect"></select>
-
-      <label>尺寸</label>
-      <div class="chip-group" id="sizeChips"></div>
-
-      <label>甜度</label>
-      <div class="chip-group" id="sweetnessChips"></div>
-
-      <label>冰塊</label>
-      <div class="chip-group" id="iceChips"></div>
-
-      <label>加料（可複選，會自動加價）</label>
-      <div class="chip-group" id="toppingChips"></div>
-
-      <div class="row">
-        <div>
-          <label>數量</label>
-          <input type="number" id="orderQty" value="1" min="1">
-        </div>
-        <div>
-          <label>單價（含加料，可修改）</label>
-          <input type="number" id="orderUnitPrice">
-        </div>
+      <label>選擇品項</label>
+      <div class="table-wrap">
+        <table id="orderItemTable"><thead><tr><th>品名</th><th>M</th><th>L</th></tr></thead><tbody></tbody></table>
       </div>
+      <div class="empty" id="orderItemEmpty" style="display:none">這個分類還沒有品項。</div>
 
-      <label>備註（選填）</label>
-      <input type="text" id="orderNote" placeholder="例如：不要香菜">
+      <div id="orderDetails" style="display:none">
+        <label>尺寸</label>
+        <div class="chip-group" id="sizeChips"></div>
 
-      <button class="primary" id="submitOrderBtn">送出訂單</button>
+        <label>甜度</label>
+        <div class="chip-group" id="sweetnessChips"></div>
+
+        <label>冰塊</label>
+        <div class="chip-group" id="iceChips"></div>
+
+        <label>加料（可複選，會自動加價）</label>
+        <div class="chip-group" id="toppingChips"></div>
+
+        <div class="row">
+          <div>
+            <label>數量</label>
+            <input type="number" id="orderQty" value="1" min="1">
+          </div>
+          <div>
+            <label>單價（含加料，可修改）</label>
+            <input type="number" id="orderUnitPrice">
+          </div>
+        </div>
+
+        <label>備註（選填）</label>
+        <input type="text" id="orderNote" placeholder="例如：不要香菜">
+
+        <button class="primary" id="submitOrderBtn">送出訂單</button>
+      </div>
       <div class="status" id="orderStatus"></div>
     </div>
   </section>
@@ -222,6 +230,7 @@
   let activeCategoryId = null;    // 菜單資料庫頁使用
   let orderStoreId = null;        // 點餐頁使用
   let orderCategoryId = null;
+  let selectedItemId = null;
   let selectedSize = "M";
   let selectedSweetness = "";
   let selectedIce = "";
@@ -722,7 +731,7 @@
         else if(inp.dataset.field==="priceM") item.priceM = Number(inp.value)||0;
         else item.priceL = Number(inp.value)||0;
         await saveStores();
-        renderOrderItemSelect();
+        renderOrderItemTable();
       });
     });
     tbody.querySelectorAll("[data-remove]").forEach(btn=>{
@@ -730,7 +739,7 @@
         cat.items = cat.items.filter(i=>i.id!==btn.dataset.remove);
         await saveStores();
         renderItemTable(store);
-        renderOrderItemSelect();
+        renderOrderItemTable();
       });
     });
   }
@@ -745,7 +754,7 @@
     nameInp.value=""; mInp.value=""; lInp.value="";
     await saveStores();
     renderItemTable(store);
-    renderOrderItemSelect();
+    renderOrderItemTable();
   });
 
   // ================= 我要點餐 =================
@@ -764,6 +773,7 @@
   document.getElementById("orderStoreSelect").addEventListener("change", e=>{
     orderStoreId = e.target.value;
     orderCategoryId = null;
+    selectItem(null);
     renderOrderCategoryTabs();
     renderOptionChipsForStore();
   });
@@ -778,27 +788,39 @@
       const btn = document.createElement("button");
       btn.textContent = cat.name;
       if(cat.id === orderCategoryId) btn.classList.add("active");
-      btn.addEventListener("click", ()=>{ orderCategoryId = cat.id; renderOrderCategoryTabs(); renderOrderItemSelect(); });
+      btn.addEventListener("click", ()=>{
+        orderCategoryId = cat.id;
+        selectItem(null);
+        renderOrderCategoryTabs();
+      });
       nav.appendChild(btn);
     });
-    renderOrderItemSelect();
+    renderOrderItemTable();
     renderOptionChipsForStore();
   }
 
-  function renderOrderItemSelect(){
-    const store = findStore(orderStoreId);
-    const cat = store ? findCategory(store, orderCategoryId) : null;
-    const sel = document.getElementById("orderItemSelect");
-    sel.innerHTML = "";
-    (cat ? cat.items : []).forEach(item=>{
-      const opt = document.createElement("option");
-      opt.value = item.id;
-      opt.textContent = `${item.name}（M$${item.priceM} / L$${item.priceL}）`;
-      sel.appendChild(opt);
-    });
+  function selectItem(id){
+    selectedItemId = id;
+    document.getElementById("orderDetails").style.display = id ? "block" : "none";
+    renderOrderItemTable();
     updateUnitPrice();
   }
-  document.getElementById("orderItemSelect").addEventListener("change", updateUnitPrice);
+
+  function renderOrderItemTable(){
+    const store = findStore(orderStoreId);
+    const cat = store ? findCategory(store, orderCategoryId) : null;
+    const tbody = document.querySelector("#orderItemTable tbody");
+    tbody.innerHTML = "";
+    const list = cat ? cat.items : [];
+    document.getElementById("orderItemEmpty").style.display = list.length ? "none" : "block";
+    list.forEach(item=>{
+      const tr = document.createElement("tr");
+      if(item.id === selectedItemId) tr.classList.add("selected");
+      tr.innerHTML = `<td>${escapeHtml(item.name)}</td><td>$${item.priceM}</td><td>$${item.priceL}</td>`;
+      tr.addEventListener("click", ()=> selectItem(item.id));
+      tbody.appendChild(tr);
+    });
+  }
 
   function renderSizeChips(){
     const container = document.getElementById("sizeChips");
@@ -861,8 +883,7 @@
   function updateUnitPrice(){
     const store = findStore(orderStoreId);
     const cat = store ? findCategory(store, orderCategoryId) : null;
-    const sel = document.getElementById("orderItemSelect");
-    const item = cat ? cat.items.find(i=>i.id===sel.value) : null;
+    const item = cat ? cat.items.find(i=>i.id===selectedItemId) : null;
     let base = 0;
     if(item) base = selectedSize === "L" ? item.priceL : item.priceM;
     const toppingSum = (store ? (store.toppings||[]) : [])
@@ -878,9 +899,8 @@
     const store = findStore(orderStoreId);
     if(!store){ status.className="status error"; status.textContent="請先建立店家"; return; }
     const cat = findCategory(store, orderCategoryId);
-    const sel = document.getElementById("orderItemSelect");
-    const item = cat ? cat.items.find(i=>i.id===sel.value) : null;
-    if(!item){ status.className="status error"; status.textContent="請先在菜單資料庫新增品項"; return; }
+    const item = cat ? cat.items.find(i=>i.id===selectedItemId) : null;
+    if(!item){ status.className="status error"; status.textContent="請先選擇品項"; return; }
 
     const toppings = (store.toppings||[]).filter(t=>selectedToppingIds.includes(t.id))
       .map(t=>({name:t.name, price:t.price}));
