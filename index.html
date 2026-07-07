@@ -205,17 +205,12 @@
       <h3>依品項統計</h3>
       <div class="table-wrap"><table id="itemSummaryTable"><thead><tr><th>品項</th><th>數量</th><th>小計</th></tr></thead><tbody></tbody></table></div>
       <h3>依暱稱統計（分帳用）</h3>
-      <div class="table-wrap"><table id="personSummaryTable"><thead><tr><th>暱稱</th><th>數量</th><th>應付金額</th></tr></thead><tbody></tbody></table></div>
+      <div class="table-wrap"><table id="personSummaryTable"><thead><tr><th>暱稱</th><th>數量</th><th>應付金額</th><th>已付</th><th>找錢</th></tr></thead><tbody></tbody></table></div>
     </div>
 
     <div class="card">
       <h2>今日訂單明細</h2>
-      <div class="table-wrap">
-        <table id="ordersTable">
-          <thead><tr><th>暱稱</th><th>店家</th><th>品項</th><th>尺寸</th><th>甜度/冰塊</th><th>加料</th><th>數量</th><th>備註</th><th>金額</th><th></th></tr></thead>
-          <tbody></tbody>
-        </table>
-      </div>
+      <div id="ordersByStore"></div>
       <div class="empty" id="ordersEmpty" style="display:none">今天還沒有人點餐。</div>
     </div>
   </section>
@@ -226,6 +221,7 @@
   let currentDate = todayStr();
   let stores = [];
   let orders = [];
+  let payments = {};
   let activeStoreId = null;       // 菜單資料庫頁使用
   let activeCategoryId = null;    // 菜單資料庫頁使用
   let orderStoreId = null;        // 點餐頁使用
@@ -523,10 +519,21 @@
     try{ await window.storage.set(`orders:${currentDate}`, JSON.stringify(orders), true); }
     catch(e){ console.error("儲存訂單失敗", e); }
   }
+  async function loadPayments(date){
+    try{
+      const r = await window.storage.get(`payments:${date}`, true);
+      return r ? JSON.parse(r.value) : {};
+    }catch(e){ return {}; }
+  }
+  async function savePayments(){
+    try{ await window.storage.set(`payments:${currentDate}`, JSON.stringify(payments), true); }
+    catch(e){ console.error("儲存收款資料失敗", e); }
+  }
   async function loadDay(date){
     currentDate = date;
     document.getElementById("datePicker").value = date;
     orders = await loadOrders(date);
+    payments = await loadPayments(date);
     renderOrdersTable();
     renderSummary();
   }
@@ -936,31 +943,49 @@
 
   // ================= 今日訂單明細 =================
   function renderOrdersTable(){
-    const tbody = document.querySelector("#ordersTable tbody");
-    tbody.innerHTML = "";
+    const container = document.getElementById("ordersByStore");
+    container.innerHTML = "";
     document.getElementById("ordersEmpty").style.display = orders.length ? "none" : "block";
+
+    const byStore = {};
     orders.forEach(o=>{
-      const toppingText = (o.toppings||[]).map(t=>`${t.name}+$${t.price}`).join("、");
-      const tr = document.createElement("tr");
-      tr.innerHTML = `
-        <td>${escapeHtml(o.nickname)}</td>
-        <td>${escapeHtml(o.storeName)}</td>
-        <td>${escapeHtml(o.itemName)}${o.note?` <span class="hint">(${escapeHtml(o.note)})</span>`:""}</td>
-        <td>${escapeHtml(o.size)}</td>
-        <td>${escapeHtml([o.sweetness,o.ice].filter(Boolean).join(" / "))}</td>
-        <td>${escapeHtml(toppingText)}</td>
-        <td>${o.qty}</td>
-        <td>${escapeHtml(o.note||"")}</td>
-        <td>$${o.price}</td>
-        <td><button class="ghost" data-remove="${o.id}">刪除</button></td>`;
-      tbody.appendChild(tr);
+      if(!byStore[o.storeName]) byStore[o.storeName] = [];
+      byStore[o.storeName].push(o);
     });
-    tbody.querySelectorAll("[data-remove]").forEach(btn=>{
-      btn.addEventListener("click", async ()=>{
-        orders = orders.filter(o=>o.id!==btn.dataset.remove);
-        await saveOrders();
-        renderOrdersTable();
-        renderSummary();
+
+    Object.entries(byStore).forEach(([storeName, list])=>{
+      const h3 = document.createElement("h3");
+      h3.textContent = storeName;
+      container.appendChild(h3);
+
+      const wrap = document.createElement("div");
+      wrap.className = "table-wrap";
+      wrap.innerHTML = `<table><thead><tr><th>暱稱</th><th>品項</th><th>尺寸</th><th>甜度/冰塊</th><th>加料</th><th>數量</th><th>備註</th><th>金額</th><th></th></tr></thead><tbody></tbody></table>`;
+      container.appendChild(wrap);
+
+      const tbody = wrap.querySelector("tbody");
+      list.forEach(o=>{
+        const toppingText = (o.toppings||[]).map(t=>`${t.name}+$${t.price}`).join("、");
+        const tr = document.createElement("tr");
+        tr.innerHTML = `
+          <td>${escapeHtml(o.nickname)}</td>
+          <td>${escapeHtml(o.itemName)}${o.note?` <span class="hint">(${escapeHtml(o.note)})</span>`:""}</td>
+          <td>${escapeHtml(o.size)}</td>
+          <td>${escapeHtml([o.sweetness,o.ice].filter(Boolean).join(" / "))}</td>
+          <td>${escapeHtml(toppingText)}</td>
+          <td>${o.qty}</td>
+          <td>${escapeHtml(o.note||"")}</td>
+          <td>$${o.price}</td>
+          <td><button class="ghost" data-remove="${o.id}">刪除</button></td>`;
+        tbody.appendChild(tr);
+      });
+      tbody.querySelectorAll("[data-remove]").forEach(btn=>{
+        btn.addEventListener("click", async ()=>{
+          orders = orders.filter(o=>o.id!==btn.dataset.remove);
+          await saveOrders();
+          renderOrdersTable();
+          renderSummary();
+        });
       });
     });
   }
@@ -993,7 +1018,33 @@
       byPerson[o.nickname].count += o.qty;
       byPerson[o.nickname].subtotal += o.price;
     });
-    fillSummaryTable("personSummaryTable", byPerson);
+    renderPersonSummaryTable(byPerson);
+  }
+  function renderPersonSummaryTable(data){
+    const tbody = document.querySelector("#personSummaryTable tbody");
+    tbody.innerHTML = "";
+    Object.entries(data).forEach(([name, v])=>{
+      const paid = payments[name];
+      const change = paid!=null ? paid - v.subtotal : null;
+      const tr = document.createElement("tr");
+      tr.innerHTML = `
+        <td>${escapeHtml(name)}</td>
+        <td>${v.count}</td>
+        <td>$${v.subtotal}</td>
+        <td><input type="number" class="small-input" data-person="${escapeHtml(name)}" value="${paid ?? ""}" placeholder="輸入金額"></td>
+        <td>${change!=null ? "$"+change : ""}</td>`;
+      tbody.appendChild(tr);
+    });
+    tbody.querySelectorAll("[data-person]").forEach(inp=>{
+      inp.addEventListener("change", async ()=>{
+        const name = inp.dataset.person;
+        const val = inp.value.trim();
+        if(val==="") delete payments[name];
+        else payments[name] = Number(val)||0;
+        await savePayments();
+        renderPersonSummaryTable(data);
+      });
+    });
   }
   function fillSummaryTable(tableId, data){
     const tbody = document.querySelector(`#${tableId} tbody`);
