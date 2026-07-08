@@ -492,6 +492,55 @@
             ["珍珠紅豆",65,65],["紫芋西米露",70,70]
           ])}
         ]
+      },
+      {
+        id: genId(),
+        name: "TEA HOUSE",
+        sweetnessOptions: ["全糖","少糖","半糖","微糖","一分糖","無糖"],
+        iceOptions: ["正常冰","少冰","微冰","去冰","完全去冰","溫","熱"],
+        toppings: [
+          { id: genId(), name:"黃金蜜香珍珠", price:10 },
+          { id: genId(), name:"蔗香粉角", price:10 },
+          { id: genId(), name:"椰果", price:10 },
+          { id: genId(), name:"粉粿", price:10 },
+          { id: genId(), name:"綠茶凍", price:10 },
+          { id: genId(), name:"蘆薈", price:15 },
+          { id: genId(), name:"大甲小芋圓", price:15 }
+        ],
+        categories: [
+          { id: genId(), name:"私房臻選", items: items([
+            ["梔茉青葡凍飲",65,65],["梔茉青葡厚奶綠",69,69],["梔茉青葡鮮奶綠",69,69],
+            ["清茶珍淑荈",50,50],["中焙生乳紅茶",49,65],["張家檸檬綠茶",45,55],
+            ["烤地瓜芋圓厚奶茶(台農57號)",59,69],["烤地瓜芋圓鮮奶茶(台農57號)",59,69],
+            ["小王秘蜜粿果綠",65,65]
+          ])},
+          { id: genId(), name:"經典茶品", items: items([
+            ["迎二十·蘭影",30,35],["黃金玄米蕎麥",25,30],["梔茉馥綠",25,30],
+            ["冬片青茶",19,25],["拾汰紅茶",19,25],["純翠綠茶",19,25],
+            ["焙香烏龍",19,25],["烏龍翠綠",19,25]
+          ])},
+          { id: genId(), name:"匠心特調", items: items([
+            ["覓蜜紅/綠茶",45,45],["青梅翠綠",45,45],["梅露青",45,45],
+            ["綠茶凍梅露",50,50],["養樂多綠茶",50,50]
+          ])},
+          { id: genId(), name:"鮮奶醇味", items: items([
+            ["醇味鮮奶茶",39,50],["金蜜珍珠鮮奶茶",45,55],["起司奶蓋茶",55,55],
+            ["玄米蕎麥鮮奶茶",45,55]
+          ])},
+          { id: genId(), name:"茶果馥諭", items: items([
+            ["蜜桃桂花烏",65,65],["迎二十·橙光",65,65],["檸檬紅茶",45,55],
+            ["檸檬黑糖粉粿",60,60],["檸檬養樂多",65,65],["覓蜜檸檬蘆薈",60,60],
+            ["甘蔗青茶",49,60],["百香翠綠",45,45]
+          ])},
+          { id: genId(), name:"本家厚奶", items: items([
+            ["本家厚奶茶",39,50],["金蜜珍珠厚奶茶",45,55],["粉粿厚奶茶",45,55],
+            ["粉角厚奶茶",45,55],["港式奶茶",60,70],["玄米蕎麥厚奶茶",45,55]
+          ])},
+          { id: genId(), name:"靜岡抹茶", items: items([
+            ["靜岡抹茶香檸",60,70],["抹茶玄米蕎麥拿鐵",65,75],["靜岡抹茶厚奶",55,65],
+            ["靜岡一番抹茶",45,55],["靜岡抹茶生乳",60,70]
+          ])}
+        ]
       }
     ];
   }
@@ -1086,15 +1135,12 @@
   // ---------- init ----------
   (async function init(){
     const loaded = await loadStores();
-    stores = (loaded && loaded.length) ? loaded : seedStore();
-    let needsSave = !loaded || !loaded.length;
-    additionalSeedStores().forEach(s=>{
-      if(!stores.some(existing=>existing.name===s.name)){
-        stores.push(s);
-        needsSave = true;
-      }
-    });
-    if(needsSave) await saveStores();
+    if(loaded && loaded.length){
+      stores = loaded;
+    }else{
+      stores = seedStore().concat(additionalSeedStores());
+      await saveStores();
+    }
     activeStoreId = stores[0].id;
     orderStoreId = stores[0].id;
     renderStoreSelect();
